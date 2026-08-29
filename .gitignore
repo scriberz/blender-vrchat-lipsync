@@ -1,0 +1,32 @@
+# ассеты — не распространяются, лицензии авторов
+*.fbx
+*.blend
+*.blend1
+*.unitypackage
+*.vrm
+*.ttf
+*.otf
+
+# медиа и промежуточные файлы
+*.mp4
+*.wav
+*.mp3
+*.png
+*.jpg
+*.ass
+*.srt
+frames/
+out/
+_temp/
+
+# секреты
+*.env
+.env
+token.json
+client_secrets.json
+*credentials*.json
+
+__pycache__/
+*.pyc
+.venv/
+venv/

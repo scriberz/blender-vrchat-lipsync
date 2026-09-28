@@ -1,115 +1,130 @@
 # blender-vrchat-lipsync
 
-Говорящий 3D-аватар из готовой озвучки — целиком локально, без нейросетей и без платных API.
+Turn a WAV file into a talking 3D avatar. Fully offline: no neural video models, no paid
+APIs, no cloud. Runs on a GTX 1050 (3 GB) — a card that cannot load a single video model.
 
-Берёт WAV с речью и текст сценария, отдаёт вертикальное видео: персонаж проговаривает
-реплику по фонемам, жестикулирует, моргает, снизу идут субтитры.
+![demo](docs/demo.gif)
 
-Всё считается на CPU и встроенном GPU: проверялось на GTX 1050 (3 ГБ) — карта, на которой
-не запускается ни одна видеомодель.
+Feed it recorded speech plus the script, get back a vertical video: the character speaks
+the line phoneme by phoneme, gestures, blinks, subtitles run along the bottom.
 
-## Как это работает
+## How it works
 
-Липсинк не рисуется нейросетью и не требует ручного рига. У аватаров в формате VRChat
-уже есть стандартный набор блендшейпов-визем — `vrc.v_aa`, `vrc.v_oh`, `vrc.v_pp` и ещё
-двенадцать. Текст раскладывается на фонемы, фонемы кладутся на эти виземы по таймингам
-из распознавания. Рот открывается ровно тогда и настолько, насколько нужно.
+Lip sync is not painted by a neural net and needs no manual face rig. Avatars in the
+VRChat format already ship with a standard set of viseme blendshapes — `vrc.v_aa`,
+`vrc.v_oh`, `vrc.v_pp` and twelve more. The script is split into phonemes, the phonemes
+are mapped onto those visemes using word timings from speech recognition. The mouth opens
+exactly when and as far as it should.
 
 ```
-WAV + текст
+WAV + script
    │
-   ├─ align_words.py       faster-whisper → тайминги каждого слова
-   ├─ merge_transcript.py  тайминги от распознавания + слова из сценария
-   ├─ render_avatar.py     Blender: виземы, жесты, моргание → PNG с альфой
-   └─ compose_reel.py      фон + субтитры → MP4
+   ├─ align_words.py       faster-whisper → per-word timings
+   ├─ merge_transcript.py  recognised timings + exact words from the script
+   ├─ render_avatar.py     Blender: visemes, gestures, blinks → PNG with alpha
+   └─ compose_reel.py      background + subtitles → MP4
 ```
 
-## Требования
+About 0.5 s per frame at 720×900 on a GTX 1050, so a 60-second clip renders in roughly
+eleven minutes. Nothing leaves the machine.
 
-- Blender 4.2+ (проверено на 5.2)
+The phoneme map in `render_avatar.py` is written for Russian; for another language, edit
+the `VIS` dictionary (letter → viseme).
+
+## Requirements
+
+- Blender 4.2+ (tested on 5.2)
 - Python 3.10+, `faster-whisper`
-- ffmpeg и ffprobe в PATH
+- ffmpeg and ffprobe in PATH
 
-Ассеты в репозиторий не входят — их лицензии не позволяют распространение:
+Assets are not included — their licences do not allow redistribution:
 
-- **аватар** — любая модель в формате VRChat с виземами `vrc.v_*` (FBX);
-  проверить наличие: `blender -b --python scripts/inspect_visemes.py -- avatar.fbx`
-- **анимации** — бесплатные клипы с [Mixamo](https://www.mixamo.com) (Talking, Idle,
-  Arguing); скачивать как FBX без скина
+- **avatar** — any VRChat-format model with `vrc.v_*` visemes (FBX);
+  check with `blender -b --python scripts/inspect_visemes.py -- avatar.fbx`
+- **animations** — free clips from [Mixamo](https://www.mixamo.com) (Talking, Idle,
+  Arguing); download as FBX without skin
 
-## Использование
+## Usage
 
 ```bash
-# 1. Тайминги слов
+# 1. Word timings
 python scripts/align_words.py voice.wav words.json
 
-# 2. Подставить точный текст вместо распознанного
+# 2. Replace recognised text with the exact script
 python scripts/merge_transcript.py words.json script.txt aligned.json
 
-# 3. Рендер аватара (PNG с прозрачным фоном)
+# 3. Render the avatar (PNG with alpha)
 blender -b --python scripts/render_avatar.py -- \
     avatar.fbx aligned.json out/frames 24 0 "Talking.fbx;Talking (1).fbx" head
 
-# 4. Сборка видео
+# 4. Compose the video
 python scripts/compose_reel.py out/frames aligned.json voice.wav reel.mp4 24 56
 ```
 
-Аргументы рендера: `<аватар> <тайминги> <куда> [fps] [секунд, 0 = вся длина]
-[анимации через ;] [ракурс: head|waist|body|reel]`
+Render arguments: `<avatar> <timings> <out dir> [fps] [seconds, 0 = full length]
+[animations separated by ;] [shot: head|waist|body|reel]`
 
-Размер кадра задаётся переменными `AVATAR_W` / `AVATAR_H` (по умолчанию 720×900).
+Frame size comes from `AVATAR_W` / `AVATAR_H` (720×900 by default).
 
-## Вспомогательные скрипты
+## Helper scripts
 
-| скрипт | зачем |
+| script | what it is for |
 |---|---|
-| `inspect_visemes.py` | есть ли у модели виземы, текстуры, кости |
-| `dump_bones.py` | полная иерархия скелета — нужна для маппинга |
-| `list_anims.py` | длина клипа и тип рига |
-| `check_loop.py` | проверка, что клип зацикливается без дрейфа |
-| `head_preview.py` | один кадр со светом и текстурами, подобрать ракурс |
-| `unpack_unitypackage.py` | распаковка `.unitypackage` с восстановлением имён |
+| `inspect_visemes.py` | does the model have visemes, textures, bones |
+| `dump_bones.py` | full skeleton hierarchy — needed for bone mapping |
+| `list_anims.py` | clip length and rig type |
+| `check_loop.py` | verify a clip loops without drift |
+| `head_preview.py` | one lit, textured frame to pick the framing |
+| `unpack_unitypackage.py` | unpack `.unitypackage` restoring original names |
 
-## Грабли, на которые я наступил
+## Rakes I stepped on
 
-Собрано по ходу работы — если делаете похожее, это сэкономит вам вечер.
+Collected while building this. If you are doing something similar, this will save you an
+evening.
 
-**Ретаргет анимации.** Копировать локальные вращения костей с Mixamo на VRChat-скелет
-нельзя: кости лежат вдоль одной оси, но развёрнуты вокруг неё по-разному, и руки
-задирает над головой. Переносить надо *отклонение от собственной рест-позы*:
-`delta = поза_в_мире · рест_в_мире⁻¹`, затем `delta · рест_цели`.
+**Animation retarget.** You cannot copy local bone rotations from Mixamo onto a VRChat
+skeleton: the bones lie along the same axis but are rolled differently around it, and the
+arms end up above the head. What must be transferred is the *deviation from the bone's own
+rest pose*: `delta = pose_world · rest_world⁻¹`, then `delta · rest_target`.
 
-**Порядок обхода.** Кости применяются от корня к листьям, иначе родитель перетирает
-ребёнка.
+**Traversal order.** Apply bones root to leaf, otherwise a parent overwrites its child.
 
-**`view_layer.update()` после присваивания матрицы** пересчитывает позу из уже
-вставленных ключей и затирает её. Обновлять надо *до*, а не после.
+**`view_layer.update()` after assigning a matrix** recomputes the pose from the keys
+already inserted and wipes your assignment. Update *before*, not after.
 
-**Зацикливание.** Модификатор `CYCLES` на f-кривых даёт дрейф, накапливающийся с каждым
-повтором. Надёжнее явный маппинг кадра: `начало + (кадр % период)`.
+**Looping.** A `CYCLES` modifier on f-curves drifts, and the drift accumulates with every
+repeat. Explicit frame mapping is reliable: `start + (frame % period)`.
 
-**Смешивание клипов** — только в начале отрезка, где предыдущий клип продолжает играть
-за своей границей. Если смешивать в конце, новый клип успевает проиграть первые кадры
-и затем прыгает на нулевой. Интерполировать матрицы линейно нельзя — нужен slerp по
-кватернионам, иначе поза идёт по хорде вместо дуги.
+**Blending clips** — only at the *start* of a segment, where the previous clip keeps
+playing past its own boundary. Blend at the end and the new clip plays a few frames before
+snapping back to zero. Matrices cannot be interpolated linearly either — you need slerp on
+quaternions, or the pose travels the chord instead of the arc.
 
-**Текстуры.** Unity не прописывает их в FBX — искать рядом с файлом и вешать вручную,
-строго внутри дерева модели, иначе подтянется текстура другого персонажа.
+**Textures.** Unity does not write them into the FBX — find them next to the file and wire
+them up by hand, strictly inside the model's own folder tree, or you will pull in another
+character's texture.
 
-**Рендер.** `BLENDER_WORKBENCH` — это режим без освещения; для картинки нужен EEVEE со
-светом. 16 сэмплов вместо дефолтных 64 и выключенные GTAO/bloom/SSR ускоряют кадр втрое
-без видимой разницы на плоско зашейдéнной модели.
+**Rendering.** `BLENDER_WORKBENCH` is an unlit mode; you need EEVEE with lights. Sixteen
+samples instead of the default 64, with GTAO/bloom/SSR off, makes a frame three times
+faster with no visible difference on a flat-shaded model.
 
-**Субтитры.** Строки режутся по длине, а не по числу слов — иначе высота блока скачет.
-Длинное тире и типографские кавычки заменять на ASCII: во многих шрифтах их нет, и
-libass молча подставляет другую гарнитуру на всю строку.
+**Subtitles.** Split lines by length, not by word count, or the block height jumps around.
+Replace em dashes and typographic quotes with ASCII: many fonts lack them and libass
+silently substitutes another face for the whole line.
 
-**Blender 5 API.** Движок называется `BLENDER_EEVEE`, у `Bone` больше нет `.select`,
-а f-кривые действия лежат в `layers → strips → channelbags`, а не в `action.fcurves`.
+**Blender 5 API.** The engine is called `BLENDER_EEVEE`, `Bone` no longer has `.select`,
+and action f-curves live under `layers → strips → channelbags` rather than
+`action.fcurves`.
 
-## Лицензия
+## Built with this
 
-MIT — см. [LICENSE](LICENSE).
+A Russian-language philosophy shorts channel runs entirely on this pipeline —
+[@knittingarchbuccal](https://www.youtube.com/@knittingarchbuccal). Every clip there is
+rendered by this code on that same GTX 1050.
 
-Лицензия распространяется на код. Аватары, анимации и шрифты, которые вы подключаете,
-остаются под лицензиями своих авторов.
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+The licence covers the code. Avatars, animations and fonts you plug in stay under their
+authors' licences.

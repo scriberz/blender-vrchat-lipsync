@@ -119,7 +119,7 @@ and action f-curves live under `layers → strips → channelbags` rather than
 ## Built with this
 
 A Russian-language philosophy shorts channel runs entirely on this pipeline —
-[@knittingarchbuccal](https://www.youtube.com/@knittingarchbuccal). Every clip there is
+[@entrepreneurofalternatives](https://www.youtube.com/@entrepreneurofalternatives). Every clip there is
 rendered by this code on that same GTX 1050.
 
 ## Licence
